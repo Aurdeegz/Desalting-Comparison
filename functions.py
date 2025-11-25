@@ -397,26 +397,41 @@ def plot_counts(transpose_file,
 
 ###################################################################################################
 
-def cv_perc(std_dev):
-    s2 = (std_dev*log(2))**2
-    return sqrt(e**s2 - 1) * 100
+def cv_perc(std_dev, mu = None, v1 = True):
+    if v1:
+        return (std_dev / mu)*100
+    else:
+        s2 = (std_dev*log(2))**2
+        return sqrt(e**s2 - 1) * 100
 
-def venn_4set(transpose_file, 
-              group_inds, 
-              group_labels, 
-              index_col = 0,
-              colours = ["grey" for _ in range(20)],
-              stringency = 1,
-              filename = "nonsense.pdf"):
-    sets = {group_labels[i] : [transpose_file[index_col]] + [transpose_file[index] for index in group_inds[i]]
-            for i in range(len(group_labels))}
-    sets = {key : gh.transpose(*value) for key, value in sets.items()}
-    sets = {key : [row for row in value if len([1 for _ in row[1:] if _==_]) >= stringency]
-            for key, value in sets.items()}
-    sets = {key : set(gh.transpose(*value)[0]) for key, value in sets.items()}
-    venny4py(sets = sets, 
-             colors = colours)
-    plt.savefig(filename)
-    return None
+
 
 ###################################################################################################
+
+def make_mod_boxes(a_file,
+                   index_dict,
+                   perform_stats = False,
+                   log10 = True,
+                   threshold = 1,
+                   filename = "test",
+                   boxplot_kwargs=dict(colours=["grey" for _ in range(20)],
+                                       ylabel = r"$\log_{10}$(Intensity)")):
+    group_avg_intensities = []
+    for key, value in index_dict.items():
+        avg_col = [key]
+        for row in a_file[1:]:
+            if log10:
+                avg_row = sh.mean([safe_log10(row[i]) for i in value], threshold = threshold)
+            else:
+                avg_row = sh.mean([row[i] for i in value], threshold = threshold)
+            avg_col.append(avg_row)
+        group_avg_intensities.append(avg_col)
+    if perform_stats:
+        stats = sh.HolmSidak(*[[col[0], col[1:]] for col in group_avg_intensities])
+        stats.write_output(f"{filename}_strin{threshold}_stats")
+    bp = mph.modified_boxplot([[item for item in col[1:] if item == item] for col in group_avg_intensities],
+                              [col[0] for col in group_avg_intensities],
+                              savefig =f"{filename}_strin{threshold}.pdf",
+                              **boxplot_kwargs)
+    return None
+ 
